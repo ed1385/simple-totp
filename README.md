@@ -12,6 +12,7 @@ Many sites now force two-factor authentication and only suggest installing a mob
 
 ## What it does
 
+- Ships in two builds: totp-en.html (English) and totp.html (Russian); both behave identically.
 - Generates standard TOTP codes (RFC 6238: HMAC-SHA1, 6 digits, 30-second period), accepted by every site that supports authenticator apps.
 - Stores several accounts: type `github` in the search box and the matching key lights up, so you never have to guess which code is which.
 - Works fully offline. Nothing is sent anywhere; there is no network code in the file at all.
@@ -20,19 +21,19 @@ Many sites now force two-factor authentication and only suggest installing a mob
 
 ## How to use it
 
-1. Download **totp.html** ([direct link](https://raw.githubusercontent.com/ed1385/simple-totp/main/totp.html) — right-click, Save link as) and open it by double-clicking. It works from a local disk or a USB stick.
+1. Download **totp-en.html** ([direct link](https://raw.githubusercontent.com/ed1385/simple-totp/main/totp-en.html) — right-click, Save link as) and open it by double-clicking. It works from a local disk or a USB stick. A Russian-language build is available as totp.html.
 2. On the site where you are enabling two-factor authentication, look under the QR code for a link such as "setup key", "can't scan?" or "enter this text code". It gives you a string of letters A–Z and digits 2–7.
-3. In totp.html, fill in the site name (for example github.com) and paste that key, then press **Save in browser**.
+3. In the generator, fill in the site name (for example github.com) and paste that key, then press **Save in browser**.
 4. A 6-digit code appears with a countdown bar. Type it into the site to finish enabling two-factor authentication.
-5. From then on, whenever a site asks for a code, open totp.html, start typing the site name, and read the highlighted code.
+5. From then on, whenever a site asks for a code, open the file, start typing the site name, and read the highlighted code.
 
 **Save your recovery codes.** Every site gives you a list of one-time recovery codes when you enable 2FA. Keep them, and keep a copy of your setup keys too (the **Show keys** button). If you lose both the keys and the recovery codes, nobody can get you back into the account.
 
 ## Where the keys are stored
 
-In the browser's own storage (localStorage), on that computer, for that browser, tied to the location of the file. Nothing is written next to totp.html and nothing is stored inside the file itself — the file is identical for everyone.
+In the browser's own storage (localStorage), on that computer, for that browser, tied to the location of the file. Nothing is written next to the file and nothing is stored inside the file itself — the file is identical for everyone.
 
-That means the keys will not be there if you open the file in a different browser, on a different computer, or after clearing browsing data. Use **Show keys** to make a text backup, and **Load from text** to restore it elsewhere.
+The English and Russian builds share the same storage when opened from the same folder in the same browser, so you can switch between them freely. The keys will not be there if you open the file in a different browser, on a different computer, or after clearing browsing data. Use **Show keys** to make a text backup, and **Load from text** to restore it elsewhere.
 
 ## Security
 
