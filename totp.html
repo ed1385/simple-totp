@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>Генератор для двухфакторной идентификации (TOTP)</title>
+<style>
+  body{margin:0;background:#1d2733;color:#e8edf2;font-family:Verdana,Tahoma,Arial,sans-serif;}
+  .box{max-width:560px;margin:30px auto;padding:20px;}
+  h1{font-size:18px;font-weight:normal;margin:0 0 6px 0;color:#9fb3c8;}
+  .where{font-size:12px;color:#6f8399;line-height:1.5;margin-bottom:18px;}
+  label{display:block;font-size:13px;color:#9fb3c8;margin:10px 0 5px 0;}
+  input[type=text]{width:100%;box-sizing:border-box;font-size:16px;padding:8px 10px;border:1px solid #3d4c5c;background:#101820;color:#e8edf2;}
+  input.key{font-family:Consolas,"Courier New",monospace;letter-spacing:1px;}
+  .row{border:1px solid #3d4c5c;background:#16202a;padding:12px 14px;margin:10px 0;}
+  .row.hit{border-color:#4caf7d;background:#18302a;}
+  .row.dim{opacity:0.35;}
+  .site{font-size:15px;color:#9fb3c8;}
+  .site b{color:#e8edf2;font-weight:normal;}
+  .code{font-family:Consolas,"Courier New",monospace;font-size:44px;letter-spacing:8px;color:#fff;margin:6px 0 4px 0;}
+  .hit .code{font-size:60px;}
+  .bar{height:5px;background:#101820;border:1px solid #3d4c5c;}
+  .fill{height:5px;background:#4caf7d;width:100%;}
+  .fill.low{background:#e0a03a;}
+  .meta{font-size:12px;color:#6f8399;margin-top:5px;}
+  .meta a{color:#9fb3c8;margin-left:12px;}
+  .add{margin-top:24px;padding-top:14px;border-top:1px solid #3d4c5c;}
+  button{font-size:14px;padding:7px 14px;margin-top:10px;background:#2e5c47;color:#fff;border:1px solid #4caf7d;cursor:pointer;}
+  button.gray{background:#2a3644;border-color:#3d4c5c;}
+  .err{color:#ff8a80;font-size:13px;margin-top:6px;}
+  .empty{color:#6f8399;font-size:13px;margin:14px 0;}
+  textarea{width:100%;box-sizing:border-box;height:120px;background:#101820;color:#e8edf2;border:1px solid #3d4c5c;font-family:Consolas,"Courier New",monospace;font-size:13px;margin-top:8px;}
+  .backup{margin-top:20px;font-size:12px;color:#6f8399;line-height:1.5;}
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>Генератор для двухфакторной идентификации (TOTP)</h1>
+  <div class="where">
+    Ключи хранятся в этом браузере на этом компьютере (localStorage) и никуда не отправляются.<br>
+    Другой браузер, другой компьютер или очистка данных браузера — ключей там не будет.
+    Поэтому держи резервную копию ключей (кнопка внизу).
+  </div>
+
+  <label for="q">Сайт, куда входишь (начни печатать — нужный ключ подсветится)</label>
+  <input type="text" id="q" autocomplete="off" spellcheck="false">
+
+  <div id="list"></div>
+
+  <div class="add">
+    <label for="nsite">Добавить сайт — название (например github.com)</label>
+    <input type="text" id="nsite" autocomplete="off" spellcheck="false">
+    <label for="nkey">Ключ настройки с этого сайта (буквы A–Z и цифры 2–7)</label>
+    <input type="text" id="nkey" class="key" autocomplete="off" spellcheck="false">
+    <button id="badd">Сохранить в браузере</button>
+    <div class="err" id="err"></div>
+  </div>
+
+  <div class="backup">
+    Резервная копия: кнопка ниже показывает все ключи текстом — скопируй в файл и спрячь.
+    Тот же текст можно вставить сюда на другом компьютере и нажать «Загрузить».<br>
+    <button class="gray" id="bshow">Показать ключи</button>
+    <div id="bk" style="display:none">
+      <textarea id="bkt" spellcheck="false"></textarea>
+      <button class="gray" id="bload">Загрузить из текста</button>
+    </div>
+  </div>
+</div>
+
+<script type="text/javascript">
+/* ---------- TOTP (RFC 6238, HMAC-SHA1, 6 цифр, 30 с) ---------- */
+function b32decode(s){
+  var a="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  s=s.toUpperCase().replace(/[^A-Z2-7]/g,"");
+  var bits=0,val=0,out=[];
+  for(var i=0;i<s.length;i++){
+    val=(val<<5)|a.indexOf(s.charAt(i));
+    bits+=5;
+    if(bits>=8){out.push((val>>>(bits-8))&255);bits-=8;val=val&((1<<bits)-1);}
+  }
+  return out;
+}
+function rotl(x,n){return (x<<n)|(x>>>(32-n));}
+function sha1(bytes){
+  var ml=bytes.length*8,m=bytes.slice(0);
+  m.push(0x80);
+  while(m.length%64!==56)m.push(0);
+  m.push(0,0,0,0,(ml>>>24)&255,(ml>>>16)&255,(ml>>>8)&255,ml&255);
+  var h0=0x67452301,h1=0xEFCDAB89,h2=0x98BADCFE,h3=0x10325476,h4=0xC3D2E1F0;
+  for(var i=0;i<m.length;i+=64){
+    var w=[],j;
+    for(j=0;j<16;j++)w[j]=(m[i+4*j]<<24)|(m[i+4*j+1]<<16)|(m[i+4*j+2]<<8)|m[i+4*j+3];
+    for(j=16;j<80;j++)w[j]=rotl(w[j-3]^w[j-8]^w[j-14]^w[j-16],1);
+    var a=h0,b=h1,c=h2,d=h3,e=h4,f,k,t;
+    for(j=0;j<80;j++){
+      if(j<20){f=(b&c)|((~b)&d);k=0x5A827999;}
+      else if(j<40){f=b^c^d;k=0x6ED9EBA1;}
+      else if(j<60){f=(b&c)|(b&d)|(c&d);k=0x8F1BBCDC;}
+      else{f=b^c^d;k=0xCA62C1D6;}
+      t=(rotl(a,5)+f+e+k+w[j])|0;
+      e=d;d=c;c=rotl(b,30);b=a;a=t;
+    }
+    h0=(h0+a)|0;h1=(h1+b)|0;h2=(h2+c)|0;h3=(h3+d)|0;h4=(h4+e)|0;
+  }
+  var hs=[h0,h1,h2,h3,h4],out=[];
+  for(i=0;i<5;i++)out.push((hs[i]>>>24)&255,(hs[i]>>>16)&255,(hs[i]>>>8)&255,hs[i]&255);
+  return out;
+}
+function hmacSha1(key,msg){
+  if(key.length>64)key=sha1(key);
+  var ipad=[],opad=[];
+  for(var i=0;i<64;i++){var k=key[i]||0;ipad.push(k^0x36);opad.push(k^0x5C);}
+  return sha1(opad.concat(sha1(ipad.concat(msg))));
+}
+function totp(secret,nowMs){
+  var t=Math.floor(nowMs/30000);
+  var msg=[0,0,0,0,(t>>>24)&255,(t>>>16)&255,(t>>>8)&255,t&255];
+  var h=hmacSha1(b32decode(secret),msg);
+  var o=h[19]&15;
+  var code=(((h[o]&0x7f)<<24)|(h[o+1]<<16)|(h[o+2]<<8)|h[o+3])%1000000;
+  return ("000000"+code).slice(-6);
+}
+
+/* ---------- хранилище ---------- */
+var STORE="totpvault";
+var items=[];
+function load(){
+  items=[];
+  try{
+    var v=window.localStorage.getItem(STORE);
+    if(v)items=JSON.parse(v);
+    var old=window.localStorage.getItem("totpkey");   /* ключ из первой версии файла */
+    if(old&&items.length===0){items.push({site:"github.com",key:old});save();window.localStorage.removeItem("totpkey");}
+  }catch(e){}
+}
+function save(){
+  try{window.localStorage.setItem(STORE,JSON.stringify(items));return true;}
+  catch(e){setErr("Браузер не даёт сохранять данные (localStorage недоступен)");return false;}
+}
+function setErr(s){document.getElementById("err").innerHTML=s;}
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function cleanKey(k){return String(k).replace(/[^A-Za-z2-7]/g,"").toUpperCase();}
+
+/* ---------- список ---------- */
+var listEl=document.getElementById("list"),qEl=document.getElementById("q");
+var lastSlot=-1,lastSig="";
+function match(site,q){return q.length>0&&site.toLowerCase().indexOf(q)>=0;}
+function build(){
+  var q=qEl.value.replace(/^\s+|\s+$/g,"").toLowerCase();
+  if(items.length===0){listEl.innerHTML='<div class="empty">Пока ни одного ключа. Добавь первый сайт ниже.</div>';return;}
+  var any=false,i;
+  for(i=0;i<items.length;i++)if(match(items[i].site,q))any=true;
+  var h="";
+  for(i=0;i<items.length;i++){
+    var cls="row";
+    if(q){cls+=match(items[i].site,q)?" hit":" dim";}
+    h+='<div class="'+cls+'" id="r'+i+'"><div class="site">'+
+       (q&&match(items[i].site,q)?'&#9654; ':'')+'<b>'+esc(items[i].site)+'</b></div>'+
+       '<div class="code" id="c'+i+'">------</div>'+
+       '<div class="bar"><div class="fill" id="f'+i+'"></div></div>'+
+       '<div class="meta"><span id="s'+i+'"></span><a href="#" onclick="return del('+i+')">удалить</a></div></div>';
+  }
+  if(q&&!any)h='<div class="empty">Сайт с таким названием не сохранён. Добавь его ниже.</div>'+h;
+  listEl.innerHTML=h;
+  lastSlot=-1;
+}
+function tick(){
+  var now=new Date().getTime(),slot=Math.floor(now/30000),sec=30-Math.floor((now%30000)/1000);
+  for(var i=0;i<items.length;i++){
+    var c=document.getElementById("c"+i);if(!c)continue;
+    if(slot!==lastSlot)c.innerHTML=totp(items[i].key,now);
+    var f=document.getElementById("f"+i);
+    f.style.width=(sec/30*100)+"%";f.className=sec<=5?"fill low":"fill";
+    document.getElementById("s"+i).innerHTML="действует ещё "+sec+" с";
+  }
+  lastSlot=slot;
+}
+function del(i){
+  if(!window.confirm("Удалить ключ для "+items[i].site+"? Без него и без recovery codes на сайт не войти."))return false;
+  items.splice(i,1);save();build();tick();return false;
+}
+function add(){
+  var site=document.getElementById("nsite").value.replace(/^\s+|\s+$/g,"");
+  var key=cleanKey(document.getElementById("nkey").value);
+  if(!site){setErr("Укажи название сайта");return;}
+  if(key.length<16){setErr("Ключ слишком короткий или содержит лишние символы");return;}
+  for(var i=0;i<items.length;i++)if(items[i].site.toLowerCase()===site.toLowerCase()){
+    if(!window.confirm("Сайт "+items[i].site+" уже есть. Заменить его ключ?"))return;
+    items.splice(i,1);break;
+  }
+  items.push({site:site,key:key});
+  if(!save())return;
+  setErr("");
+  document.getElementById("nsite").value="";document.getElementById("nkey").value="";
+  qEl.value=site;build();tick();
+}
+
+/* ---------- резервная копия ---------- */
+function showBackup(){
+  var bk=document.getElementById("bk"),t=document.getElementById("bkt");
+  if(bk.style.display==="none"){
+    var s="";for(var i=0;i<items.length;i++)s+=items[i].site+" "+items[i].key+"\n";
+    t.value=s;bk.style.display="block";
+  }else bk.style.display="none";
+}
+function loadBackup(){
+  var lines=document.getElementById("bkt").value.split(/\r?\n/),n=0;
+  for(var i=0;i<lines.length;i++){
+    var p=lines[i].replace(/^\s+|\s+$/g,"").split(/\s+/);
+    if(p.length<2)continue;
+    var key=cleanKey(p.slice(1).join(""));if(key.length<16)continue;
+    var site=p[0],dup=false;
+    for(var j=0;j<items.length;j++)if(items[j].site.toLowerCase()===site.toLowerCase()){items[j].key=key;dup=true;}
+    if(!dup)items.push({site:site,key:key});
+    n++;
+  }
+  if(save()){setErr("");window.alert("Загружено ключей: "+n);build();tick();}
+}
+
+function on(el,ev,fn){if(el.addEventListener)el.addEventListener(ev,fn,false);else el.attachEvent("on"+ev,fn);}
+on(qEl,"keyup",function(){build();tick();});
+on(document.getElementById("badd"),"click",add);
+on(document.getElementById("bshow"),"click",showBackup);
+on(document.getElementById("bload"),"click",loadBackup);
+load();build();tick();setInterval(tick,1000);
+</script>
+</body>
+</html>
